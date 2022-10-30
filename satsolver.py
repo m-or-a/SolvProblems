@@ -1,4 +1,5 @@
 import copy
+from collections import Counter
 
 def read_dismac(file_name):
 
@@ -91,33 +92,45 @@ def return_step(new_d, v_sat, step):
     for i in new_d:
         if i in v_sat and v_sat[i][0] < new_step:
             new_step = v_sat[i][0]
+    if new_step == step:
+        new_step -= 1
+
     return new_step
     
 def analyze_conflict(cnf_origin, cnf, v_sat, step):
 
-    if step == 1:
+    if step == 0:
         return cnf_origin, -1
     for d in cnf:
         if cnf[d] == []:
             cd = d 
             break
     x = list(v_sat.keys())[-1] 
+    
+    tmp_d = create_new_d(cnf_origin, cd, x, v_sat[x][1]) 
+
+    for i in cnf_origin:
+        if Counter(cnf_origin[i]) == Counter(tmp_d):
+            return cnf_origin, step - 1
+
     tmp = len(cnf_origin) + 1
-    cnf_origin[tmp] = create_new_d(cnf_origin, cd, x, v_sat[x][1]) 
+    cnf_origin[tmp] = tmp_d
     new_step = return_step(cnf_origin[tmp], v_sat, step) 
     return cnf_origin, new_step
 
-def backtrack(bl, cnf, v_sat, solved_d): 
+def backtrack(bl, origin_cnf, cnf, v_sat, solved_d): 
     x = list(solved_d.keys())
     for i in x: 
-        if solved_d[i]['step'] > bl:
-            cnf[i] = solved_d[i][0]
+        if solved_d[i]['step'] >= bl:
+            cnf[i] = solved_d[i]['d']
             solved_d.pop(i)
+    tmp = list(origin_cnf.keys())[-1]
+    cnf[tmp] = origin_cnf[tmp].copy()
     x = list(v_sat.keys())
     for i in x:
-        if v_sat[i][0] > bl:
+        if v_sat[i][0] >= bl:
             for k, n in cnf.items():
-                if -i in n:
+                if -i in origin_cnf[k] and -i not in cnf[k]:
                     cnf[k].append(-i)
             v_sat.pop(i)
     return cnf, solved_d, v_sat
@@ -129,6 +142,11 @@ def cdcl(cnf, v):
     v_sat = {}
     solved_d = {}
     while(True):
+
+        for i in new_cnf:
+            if new_cnf[i] == [] and step == 0:
+                return 'unsat', 0
+
         v_sat, step, flag = decide(new_cnf, v, v_sat, step)
         if not flag:
             return 'sat', v_sat
@@ -140,8 +158,8 @@ def cdcl(cnf, v):
             cnf, bactrack_level = analyze_conflict(cnf, new_cnf, v_sat, step)
             if bactrack_level < 0:
                return 'unsat', 0
-            new_cnf, solved_d, v_sat = backtrack(bactrack_level, new_cnf, v_sat, solved_d)
-
+            new_cnf, solved_d, v_sat = backtrack(bactrack_level,cnf, new_cnf, v_sat, solved_d)
+            step = bactrack_level
 
 file_name = input('file name: ')
 v, d, cnf = read_dismac(file_name)
